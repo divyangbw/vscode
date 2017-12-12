@@ -33,11 +33,16 @@ class TestTerminalInstance extends TerminalInstance {
 suite('Workbench - TerminalInstance', () => {
 
 	let instantiationService: TestInstantiationService;
+	let instance: TestTerminalInstance;
+	let configHelper: { config: { cwd: string } };
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IMessageService, new TestMessageService());
 		instantiationService.stub(IHistoryService, new TestHistoryService());
+		let contextKeyService = new MockContextKeyService();
+		let terminalFocusContextKey = contextKeyService.createKey('test', false);
+		instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null);
 	});
 
 	test('createTerminalEnv', function () {
@@ -48,7 +53,7 @@ suite('Workbench - TerminalInstance', () => {
 		const parentEnv1: IStringDictionary<string> = {
 			ok: true
 		} as any;
-		const env1 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, '/foo', 'en-au');
+		const env1 = instance.createTerminalEnv(parentEnv1, shell1, '/foo', 'en-au');
 		assert.ok(env1['ok'], 'Parent environment is copied');
 		assert.deepStrictEqual(parentEnv1, { ok: true }, 'Parent environment is unchanged');
 		assert.equal(env1['PTYPID'], process.pid.toString(), 'PTYPID is equal to the current PID');
@@ -66,15 +71,15 @@ suite('Workbench - TerminalInstance', () => {
 		const parentEnv2: IStringDictionary<string> = {
 			LANG: 'en_US.UTF-8'
 		};
-		const env2 = TerminalInstance.createTerminalEnv(parentEnv2, shell2, '/foo', 'en-au');
+		const env2 = instance.createTerminalEnv(parentEnv2, shell2, '/foo', 'en-au');
 		assert.ok(!('PTYSHELLARG0' in env2), 'PTYSHELLARG0 is unset');
 		assert.equal(env2['PTYCWD'], '/foo', 'PTYCWD is equal to /foo');
 		assert.equal(env2['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
-		const env3 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, '/', null);
+		const env3 = instance.createTerminalEnv(parentEnv1, shell1, '/', null);
 		assert.equal(env3['LANG'], 'en_US.UTF-8', 'LANG is equal to en_US.UTF-8 as fallback.'); // More info on issue #14586
 
-		const env4 = TerminalInstance.createTerminalEnv(parentEnv2, shell1, '/', null);
+		const env4 = instance.createTerminalEnv(parentEnv2, shell1, '/', null);
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
 	});
 

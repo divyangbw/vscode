@@ -590,33 +590,16 @@ export class TerminalInstance implements ITerminalInstance {
 			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
 		}
 
-		const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
-		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		this._initialCwd = this._getCwd(this._shellLaunchConfig, lastActiveWorkspaceRootUri);
-
-		// Resolve env vars from config and shell
-		const envSettingKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		const envFromConfig = { ...this._configHelper.config.env[envSettingKey] };
-		Object.keys(envFromConfig).forEach((key) => {
-			if (typeof envFromConfig[key] === 'string') {
-				envFromConfig[key] = this._configurationResolverService.resolve(lastActiveWorkspaceRoot, envFromConfig[key]);
-			}
-		});
-		const envFromShell = { ...this._shellLaunchConfig.env };
-		Object.keys(envFromShell).forEach((key) => {
-			if (typeof envFromShell[key] === 'string') {
-				envFromShell[key] = this._configurationResolverService.resolve(lastActiveWorkspaceRoot, envFromShell[key]);
-			}
-		});
-		this._shellLaunchConfig.env = envFromShell;
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot('file'));
 
 		// Merge process env with the env from config
 		const parentEnv = { ...process.env };
-		TerminalInstance.mergeEnvironments(parentEnv, envFromConfig);
+		const envSettingKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		TerminalInstance.mergeEnvironments(parentEnv, this._configHelper.config.env[envSettingKey]);
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
-		const env = TerminalInstance.createTerminalEnv(parentEnv, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
+		const env = this.createTerminalEnv(parentEnv, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
 			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
@@ -816,13 +799,22 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	// TODO: This should be private/protected
 	// TODO: locale should not be optional
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
+	protected createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
 		const env = { ...parentEnv };
 		if (shell.env) {
 			TerminalInstance.mergeEnvironments(env, shell.env);
 		}
+
+		const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
+
+		// Resolve env vars from config and shell
+		Object.keys(env).forEach((key) => {
+			if (typeof env[key] === 'string') {
+				env[key] = this._configurationResolverService.resolve(lastActiveWorkspaceRoot, env[key]);
+			}
+		});
 
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
